@@ -124,7 +124,7 @@ class MLPClassifierDeep(nn.Module):
         layers.append(nn.Linear(h * w * 3, hidden_dim))
         layers.append(nn.ReLU())
 
-        for _ in range(num_layers - 1):
+        for _ in range(num_layers):
             layers.append(nn.Linear(hidden_dim, hidden_dim))
             layers.append(nn.ReLU())
 
@@ -146,11 +146,29 @@ class MLPClassifierDeep(nn.Module):
 
 
 class MLPClassifierDeepResidual(nn.Module):
+    class Block(nn.Module):
+        def __init__(self, in_dim, out_dim):
+            super().__init__()
+            self.layers = nn.Sequential(
+                nn.Linear(in_dim, out_dim),
+                nn.LayerNorm(out_dim),
+                nn.ReLU(),
+            )
+            if in_dim != out_dim:
+                self.skip = nn.Linear(in_dim, out_dim)
+            else:
+                self.skip = nn.Identity()
+
+        def forward(self, x):
+            return self.skip(x) + self.layers(x)
+
     def __init__(
         self,
         h: int = 64,
         w: int = 64,
         num_classes: int = 6,
+        num_layers: int = 3,
+        hidden_dim: int = 128,
     ):
         """
         Args:
@@ -164,7 +182,16 @@ class MLPClassifierDeepResidual(nn.Module):
         """
         super().__init__()
 
-        raise NotImplementedError("MLPClassifierDeepResidual.__init__() is not implemented")
+        layers = []
+        layers.append(nn.Flatten())
+
+        layers.append(nn.Linear(h * w * 3, hidden_dim, bias=False))
+
+        for _ in range(num_layers):
+            layers.append(self.Block(hidden_dim, hidden_dim))
+
+        layers.append(nn.Linear(hidden_dim, num_classes, bias=False))
+        self.model = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -174,7 +201,7 @@ class MLPClassifierDeepResidual(nn.Module):
         Returns:
             tensor (b, num_classes) logits
         """
-        raise NotImplementedError("MLPClassifierDeepResidual.forward() is not implemented")
+        return self.model(x)
 
 
 model_factory = {
